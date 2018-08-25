@@ -1,4 +1,11 @@
 # template-circleci
-Template repo for CircleCI DockerHub+SingularityHub continuous integration
+Khanlab template repo for CircleCI DockerHub+SingularityHub continuous integration.
 
-TO DO: add instructions for using this with your project
+
+## Requirements:
+* Github repo in Khanlab organization
+* Dockerfile in that repo
+
+## Instructions:
+1. Copy the .circleci/config.yml to your repository
+2. Login to circleci.com, and add the project
