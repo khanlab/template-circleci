@@ -49,8 +49,11 @@ jobs:
       - attach_workspace:
           at: /tmp/workspace
       - run: 
-          ls /tmp/workspace
-          cat /tmp/workspace/docker_image.tar
+          name: Load docker image
+          command: |
+            ls /tmp/workspace
+            cat /tmp/workspace/docker_image.tar
+
 #uncomment below for shub build
 #      - run:
 #          name: Pushing latest to singularity hub test
