@@ -19,6 +19,11 @@ jobs:
               export DOCKER_NAME=$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME:$VERSION.$CIRCLE_BUILD_NUM
               # put build command here:
               echo docker build -t $DOCKER_NAME .
+              echo docker save $DOCKER_NAME -o /tmp/docker_image.tar > /tmp/docker_image.tar
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+            - docker_image.tar
       - run:
           name: Running Tests
           command: |
@@ -35,7 +40,17 @@ jobs:
             echo docker tag $DOCKER_NAME $DOCKER_LATEST
             echo docker push $DOCKER_LATEST
             echo docker push $DOCKER_NAME
-            
+  test:
+    docker:
+      - image: docker:17.05.0-ce-git
+    steps:
+      - checkout
+      - setup_remote_docker            
+      - attach_workspace:
+          at: /tmp/workspace
+      - run: 
+          ls /tmp/workspace
+          cat /tmp/workspace/docker_image.tar
 #uncomment below for shub build
 #      - run:
 #          name: Pushing latest to singularity hub test
@@ -53,3 +68,6 @@ workflows:
     jobs: 
       - build:
           context: org-global
+      - test:
+          context: org-global
+          
