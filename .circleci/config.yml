@@ -51,8 +51,8 @@ jobs:
       - run: 
           name: Load docker image
           command: |
-            ls /tmp/workspace
-            #           cat /tmp/workspace/docker_image.tar
+            ls -l /tmp/workspace
+            cat /tmp/workspace/docker_image.tar
 
 #uncomment below for shub build
 #      - run:
@@ -72,5 +72,7 @@ workflows:
       - build:
           context: org-global
       - test:
+          requires:
+            - build
           context: org-global
           
