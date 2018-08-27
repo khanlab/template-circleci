@@ -17,29 +17,13 @@ jobs:
           no_output_timeout: 1h
           command: |
               export DOCKER_NAME=$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME:$VERSION.$CIRCLE_BUILD_NUM
-              # put build command here:
-              echo docker build -t $DOCKER_NAME .
-              echo docker save $DOCKER_NAME -o /tmp/docker_image.tar > /tmp/docker_image.tar
+              docker build -t $DOCKER_NAME .
+              docker save $DOCKER_NAME -o /tmp/docker_image.tar
       - persist_to_workspace:
           root: /tmp
           paths:
             - docker_image.tar
-      - run:
-          name: Running Tests
-          command: |
-              export DOCKER_NAME=$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME:$VERSION.$CIRCLE_BUILD_NUM
-              # put tests here
-              echo docker run -it $DOCKER_NAME flirt -version
-      - run:
-          name: Pushing build to docker hub
-          command: |
-            docker login -u $DOCKER_USER -p $DOCKER_PASS
-            export DOCKER_NAME=$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME:$VERSION.$CIRCLE_BUILD_NUM
-            export DOCKER_LATEST=$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME:latest
-            # tag and push here:
-            echo docker tag $DOCKER_NAME $DOCKER_LATEST
-            echo docker push $DOCKER_LATEST
-            echo docker push $DOCKER_NAME
+
   test:
     docker:
       - image: docker:17.05.0-ce-git
@@ -52,7 +36,39 @@ jobs:
           name: Load docker image
           command: |
             ls -l /tmp/workspace
-            cat /tmp/workspace/docker_image.tar
+            docker load -i /tmp/workspace/docker_image.tar
+      - run:
+          name: Running Tests
+          command: |
+              export DOCKER_NAME=$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME:$VERSION.$CIRCLE_BUILD_NUM
+              # put tests here
+              echo docker run -it $DOCKER_NAME flirt -version
+
+  deploy:
+    docker:
+      - image: docker:17.05.0-ce-git
+    steps:
+      - checkout
+      - setup_remote_docker            
+      - attach_workspace:
+          at: /tmp/workspace
+      - run: 
+          name: Load docker image
+          command: |
+            ls -l /tmp/workspace
+            docker load -i /tmp/workspace/docker_image.tar
+     - run:
+          name: Pushing build to docker hub
+          command: |
+            docker login -u $DOCKER_USER -p $DOCKER_PASS
+            export DOCKER_NAME=$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME:$VERSION.$CIRCLE_BUILD_NUM
+            export DOCKER_LATEST=$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME:latest
+            # tag and push here:
+            echo docker tag $DOCKER_NAME $DOCKER_LATEST
+            echo docker push $DOCKER_LATEST
+            echo docker push $DOCKER_NAME
+
+
 
 #uncomment below for shub build
 #      - run:
@@ -75,4 +91,9 @@ workflows:
           requires:
             - build
           context: org-global
-          
+      - deploy:
+          requires:
+            - build
+            - test
+          context: org-global
+         
