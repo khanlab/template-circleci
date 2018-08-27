@@ -117,7 +117,7 @@ jobs:
             echo "From: $DOCKER_NAME" >> Singularity.$CIRCLE_TAG
             git add Singularity.$CIRCLE_TAG
             git commit -m "shub build release $CIRCLE_TAG [skip ci]"
-            git push -q https://${GITHUB_TOKEN}@github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git
+            git push -q https://${GITHUB_TOKEN}@github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git HEAD:master
 
 workflows:
   version: 2
@@ -139,10 +139,10 @@ workflows:
           requires:
             - build
             - test
-          context: org-global
           filters:
             tags:
-              only: /.*/
+              ignore: /^v.*/
+          context: org-global
       - deploy_release:
           requires:
             - build
@@ -164,7 +164,6 @@ workflows:
               only: /^v.*/
             branches:
               ignore: /.*/
-
 
   nightly:
     triggers:
