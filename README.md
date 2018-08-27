@@ -1,3 +1,6 @@
+[![https://www.singularity-hub.org/static/img/hosted-singularity--hub-%23e32929.svg](https://www.singularity-hub.org/static/img/hosted-singularity--hub-%23e32929.svg)](https://singularity-hub.org/collections/1503)
+[![CircleCI](https://circleci.com/gh/khanlab/template-circleci.svg?style=svg)](https://circleci.com/gh/khanlab/template-circleci)
+
 # template-circleci
 Khanlab template repo for CircleCI DockerHub+SingularityHub continuous integration.
 
