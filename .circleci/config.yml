@@ -60,6 +60,29 @@ jobs:
             echo docker push $DOCKER_NAME
             docker push $DOCKER_NAME
 
+  deploy_release:
+    docker:
+      - image: docker:17.05.0-ce-git
+    steps:
+      - setup_remote_docker            
+      - attach_workspace:
+          at: /tmp/workspace
+      - run: 
+          name: Load docker image
+          command: |
+            docker load -i /tmp/workspace/docker_image.tar
+      - run:
+          name: Pushing build to docker hub
+          command: |
+            docker login -u $DOCKER_USER -p $DOCKER_PASS
+            export DOCKER_NAME=$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME:latest
+            export DOCKER_RELEASE=$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME:$CIRCLE_TAG
+            # tag and push here:
+            echo docker tag $DOCKER_NAME $DOCKER_RELEASE
+            docker tag $DOCKER_NAME $DOCKER_RELEASE
+            docker push $DOCKER_RELEASE
+            docker push $DOCKER_NAME
+
   deploy_shub:
     docker:
       - image: docker:17.05.0-ce-git
@@ -75,34 +98,13 @@ jobs:
             echo "Bootstrap: docker" > Singularity
             echo "From: $DOCKER_NAME" >> Singularity
             git add Singularity
-            git commit -m "shub build latest [skip ci]"
+            git commit -m "shub build latest nightly [skip ci]"
             git push -q https://${GITHUB_TOKEN}@github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git
 
-      - run:
-          name: Pushing build to docker hub
-          command: |
-            docker login -u $DOCKER_USER -p $DOCKER_PASS
-            export DOCKER_NAME=$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME:latest
-            # tag and push here:
-            echo docker push $DOCKER_NAME
-            docker push $DOCKER_NAME
-
-
-
-#uncomment below for shub build
-#      - run:
-#          name: Pushing latest to singularity hub test
-#          command: |
-#            git config --global user.email $GH_EMAIL
-#            git config --global user.name $GH_NAME
-#            echo "" >> Singularity
-#            git add Singularity
-#            git commit -m "shub build latest [skip ci]"
-#            git push -q https://${GITHUB_TOKEN}@github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git
 
 workflows:
   version: 2
-  dev_commit:
+  commit:
     jobs: 
       - build:
           context: org-global
@@ -115,9 +117,31 @@ workflows:
             - build
             - test
           context: org-global
+  nightly:
+    triggers:
+      - schedule:
+          cron: "0 0 * * *"
+          filters:
+            branches:
+              only:
+                - master
+    jobs:
       - deploy_shub:
+          context: org-global
+  tagged:
+    jobs: 
+      - build:
+          context: org-global
+          filters:
+            tags:
+              only: /^v.*/
+      - test:
+          requires:
+            - build
+          context: org-global
+      - deploy_release:
           requires:
             - build
             - test
-            - deploy
           context: org-global
+
