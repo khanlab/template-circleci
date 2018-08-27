@@ -3,8 +3,6 @@ jobs:
   build:
     docker:
       - image: docker:17.05.0-ce-git
-    environment:
-      VERSION: v1.4
     steps:
       - checkout
       - setup_remote_docker
@@ -16,7 +14,7 @@ jobs:
           name: Building Docker container
           no_output_timeout: 1h
           command: |
-              export DOCKER_NAME=$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME:$VERSION.$CIRCLE_BUILD_NUM
+              export DOCKER_NAME=$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME:latest
               docker build -t $DOCKER_NAME .
               docker save $DOCKER_NAME -o /tmp/docker_image.tar
       - persist_to_workspace:
@@ -35,14 +33,14 @@ jobs:
       - run: 
           name: Load docker image
           command: |
-            ls -l /tmp/workspace
             docker load -i /tmp/workspace/docker_image.tar
       - run:
           name: Running Tests
           command: |
-              export DOCKER_NAME=$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME:$VERSION.$CIRCLE_BUILD_NUM
+              export DOCKER_NAME=$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME:latest
               # put tests here
-              docker run -it $DOCKER_NAME echo "Hello World!"
+              echo docker run -it $DOCKER_NAME echo 
+              docker run -it $DOCKER_NAME echo 
 
   deploy:
     docker:
@@ -55,18 +53,15 @@ jobs:
       - run: 
           name: Load docker image
           command: |
-            ls -l /tmp/workspace
             docker load -i /tmp/workspace/docker_image.tar
       - run:
           name: Pushing build to docker hub
           command: |
             docker login -u $DOCKER_USER -p $DOCKER_PASS
-            export DOCKER_NAME=$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME:$VERSION.$CIRCLE_BUILD_NUM
-            export DOCKER_LATEST=$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME:latest
+            export DOCKER_NAME=$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME:latest
             # tag and push here:
-            echo docker tag $DOCKER_NAME $DOCKER_LATEST
-            echo docker push $DOCKER_LATEST
             echo docker push $DOCKER_NAME
+            docker push $DOCKER_NAME
 
 
 
@@ -83,7 +78,7 @@ jobs:
 
 workflows:
   version: 2
-  build_and_test:
+  dev_commit:
     jobs: 
       - build:
           context: org-global
