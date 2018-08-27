@@ -108,15 +108,31 @@ workflows:
     jobs: 
       - build:
           context: org-global
+          filters:
+            tags:
+              only: /.*/
       - test:
           requires:
             - build
           context: org-global
-      - deploy:
+      - deploy_dev:
           requires:
             - build
             - test
           context: org-global
+            tags:
+              only: /.*/
+            branches:
+              ignore: /^v.*/
+      - deploy_release:
+          requires:
+            - build
+            - test
+          context: org-global
+            tags:
+              only: /^v.*/
+            branches:
+              ignore: /.*/
   nightly:
     triggers:
       - schedule:
@@ -127,21 +143,5 @@ workflows:
                 - master
     jobs:
       - deploy_shub:
-          context: org-global
-  tagged:
-    jobs: 
-      - build:
-          context: org-global
-          filters:
-            tags:
-              only: /^v.*/
-      - test:
-          requires:
-            - build
-          context: org-global
-      - deploy_release:
-          requires:
-            - build
-            - test
           context: org-global
 
