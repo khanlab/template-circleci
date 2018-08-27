@@ -101,6 +101,23 @@ jobs:
             git commit -m "shub build latest nightly [skip ci]"
             git push -q https://${GITHUB_TOKEN}@github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git
 
+  deploy_release_shub:
+    docker:
+      - image: docker:17.05.0-ce-git
+    steps:
+      - checkout
+      - setup_remote_docker            
+      - run:
+          name: Pushing release to singularity hub 
+          command: |
+            export DOCKER_NAME=$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME:$CIRCLE_TAG
+            git config --global user.email $GH_EMAIL
+            git config --global user.name $GH_NAME
+            echo "Bootstrap: docker" > Singularity.$CIRCLE_TAG
+            echo "From: $DOCKER_NAME" >> Singularity.$CIRCLE_TAG
+            git add Singularity.$CIRCLE_TAG
+            git commit -m "shub build release $CIRCLE_TAG [skip ci]"
+            git push -q https://${GITHUB_TOKEN}@github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git
 
 workflows:
   version: 2
@@ -115,6 +132,9 @@ workflows:
           requires:
             - build
           context: org-global
+          filters:
+            tags:
+              only: /.*/
       - deploy_dev:
           requires:
             - build
@@ -133,6 +153,19 @@ workflows:
               only: /^v.*/
             branches:
               ignore: /.*/
+      - deploy_release_shub:
+          requires:
+            - build
+            - test
+            - deploy_release
+          context: org-global
+          filters:
+            tags:
+              only: /^v.*/
+            branches:
+              ignore: /.*/
+
+
   nightly:
     triggers:
       - schedule:
