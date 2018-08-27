@@ -40,7 +40,7 @@ jobs:
               export DOCKER_NAME=$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME:latest
               # put tests here
               echo docker run -it $DOCKER_NAME 
-              docker run -it $DOCKER_NAME echo hello 
+              docker run -it $DOCKER_NAME ls
 
   deploy:
     docker:
