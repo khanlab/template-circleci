@@ -1,34 +1,11 @@
 version: 2
 jobs:
-  condtest:
-    docker:
-      - image: docker:17.05.0-ce-git
-    steps:
-      - checkout
-      - setup_remote_docker
-      - run:
-          name: Install dependencies 
-          command: |
-            apk add --update make coreutils
-      - run:
-          name: Testing temp 
-          command: |
-            lastcommit=$(git log -1 --date=short --pretty=format:%cd)
-            currdate=$(date +%Y-%m-%d) 
-            echo $lastcommit
-            echo $currdate
-            if [ "$currdate" = "$lastcommit" ]; then echo commmit not today; exit 0; fi
-            echo commit today
   build:
     docker:
       - image: docker:17.05.0-ce-git
     steps:
       - checkout
       - setup_remote_docker
-      - run:
-          name: Install dependencies 
-          command: |
-            apk add --update make wget
       - run:
           name: Building Docker container
           no_output_timeout: 1h
@@ -48,6 +25,10 @@ jobs:
       - setup_remote_docker            
       - attach_workspace:
           at: /tmp/workspace
+      - run:
+          name: Install dependencies 
+          command: |
+            apk add --update make wget
       - run: 
           name: Load docker image
           command: |
@@ -111,9 +92,9 @@ jobs:
       - run:
           name: Pushing latest to singularity hub 
           command: |
-            lastcommit=$(git log -1 --date=short --pretty=format:%cd)
-            currdate=$(date -v -4H +%Y-%m-%d) #date from 4 hours before 
-            if [ ! "$currdate" = "$lastcommit" ]; then exit 0; fi
+            sincecommit=$(git log -1 --date=unix --pretty=format:%cd)
+            if [ ! -e Singularity ]; then sinceshub=0; else sinceshub=$(git log -1 --date=unix --pretty=format:%cd Singularity); fi
+            if [ "$sincecommit" -gt "$sinceshub" ]; then echo "Commit since last shub build, rebuilding..."; else echo "No commit since last shub build, skipping..."; exit 0; fi
             export DOCKER_NAME=$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME:latest
             git config --global user.email $GH_EMAIL
             git config --global user.name $GH_NAME
@@ -147,8 +128,6 @@ workflows:
   version: 2
   commit:
     jobs: 
-      - condtest:
-          context: org-global
       - build:
           context: org-global
           filters:
