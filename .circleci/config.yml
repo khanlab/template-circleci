@@ -1,5 +1,20 @@
 version: 2
 jobs:
+  condtest:
+    docker:
+      - image: docker:17.05.0-ce-git
+    steps:
+      - checkout
+      - setup_remote_docker
+      - run:
+          name: Testing conditional date 
+          command: |
+            lastcommit=$(git log -1 --date=short --pretty=format:%cd)
+            currdate=$(date -v -4H +%Y-%m-%d) #date from 4 hours before 
+            echo $lastcommit
+            echo $currdate
+            if [ ! "$currdate" = "$lastcommit" ]; then echo commmit not today; exit 0; fi
+            echo commit today
   build:
     docker:
       - image: docker:17.05.0-ce-git
@@ -92,6 +107,9 @@ jobs:
       - run:
           name: Pushing latest to singularity hub 
           command: |
+            lastcommit=$(git log -1 --date=short --pretty=format:%cd)
+            currdate=$(date -v -4H +%Y-%m-%d) #date from 4 hours before 
+            if [ ! "$currdate" = "$lastcommit" ]; then exit 0; fi
             export DOCKER_NAME=$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME:latest
             git config --global user.email $GH_EMAIL
             git config --global user.name $GH_NAME
@@ -125,6 +143,8 @@ workflows:
   version: 2
   commit:
     jobs: 
+      - condtest:
+          context: org-global
       - build:
           context: org-global
           filters:
