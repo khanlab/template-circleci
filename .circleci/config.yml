@@ -7,7 +7,7 @@ jobs:
       - checkout
       - setup_remote_docker
       - run:
-          name: Testing conditional date 
+          name: Testing temp 
           command: |
             lastcommit=$(git log -1 --date=short --pretty=format:%cd)
             currdate=$(date %Y-%m-%d) 
