@@ -97,6 +97,8 @@ jobs:
             git config --global user.name $GH_NAME
             echo "Bootstrap: docker" > Singularity
             echo "From: $DOCKER_NAME" >> Singularity
+            echo "%labels" >> Singularity
+            echo "CIRCLE_BUILD_URL $CIRCLE_BUILD_URL" >> Singularity
             git add Singularity
             git commit -m "shub build latest nightly [skip ci]"
             git push -q https://${GITHUB_TOKEN}@github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git
@@ -168,7 +170,7 @@ workflows:
   nightly:
     triggers:
       - schedule:
-          cron: "0 0 * * *"
+          cron: "0 3 * * *"
           filters:
             branches:
               only:
