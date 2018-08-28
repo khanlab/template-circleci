@@ -17,7 +17,7 @@ jobs:
             currdate=$(date +%Y-%m-%d) 
             echo $lastcommit
             echo $currdate
-            if [ ! "$currdate" = "$lastcommit" ]; then echo commmit not today; exit 0; fi
+            if [ "$currdate" = "$lastcommit" ]; then echo commmit not today; exit 0; fi
             echo commit today
   build:
     docker:
