@@ -10,7 +10,7 @@ jobs:
           name: Testing conditional date 
           command: |
             lastcommit=$(git log -1 --date=short --pretty=format:%cd)
-            currdate=$(date -v -4H +%Y-%m-%d) #date from 4 hours before 
+            currdate=$(date %Y-%m-%d) 
             echo $lastcommit
             echo $currdate
             if [ ! "$currdate" = "$lastcommit" ]; then echo commmit not today; exit 0; fi
