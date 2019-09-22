@@ -1,4 +1,6 @@
-version: 2
+version: 2.1
+orbs:
+  singularity: singularity/singularity@1.0.8
 jobs:
   build:
     docker:
@@ -129,9 +131,10 @@ jobs:
             git push -q https://${GITHUB_TOKEN}@github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git HEAD:master
 
 workflows:
-  version: 2
   commit:
     jobs: 
+      - singularity/docker_cli:
+          singularity-version: 3.2.1-slim
       - build:
           context: org-global
           filters:
