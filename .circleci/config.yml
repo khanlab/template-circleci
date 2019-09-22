@@ -22,7 +22,7 @@ jobs:
             
   build_sif:
     docker:
-      - image: singularityware/singularity:3.2.1
+      - image: singularityware/singularity:3.2.1-slim
     steps:
       - checkout
       - attach_workspace:
@@ -60,10 +60,26 @@ jobs:
               # put tests here
               echo "no tests implemented yet"
               #docker run -it $DOCKER_NAME ls
-
+  test_sif:
+    docker:
+      - image: singularityware/singularity:3.2.1-slim
+    steps:
+      - attach_workspace:
+          at: /tmp/workspace
+      - run:
+          name: Install dependencies 
+          command: |
+            apk add --update make wget
+      - run:
+          name: Running Tests
+          command: |
+              # put tests here
+              singularity run /tmp/workspace/singularity_image.sif
+              echo "no tests implemented yet"
+              
   deploy_dev_sif:
     docker:
-      - image: singularityware/singularity:3.2.1
+      - image: singularityware/singularity:3.2.1-slim
     steps:
       - attach_workspace:
           at: /tmp/workspace
@@ -189,10 +205,17 @@ workflows:
           filters:
             tags:
               only: /.*/
+      - test_sif:
+          requires:
+            - build_sif
+          context: org-global
+          filters:
+            tags:
+              only: /.*/
       - deploy_dev_sif:
           requires:
             - build_sif
-            - test
+            - test_sif
           context: org-global
           filters:
             tags:
