@@ -61,9 +61,11 @@ jobs:
               echo "no tests implemented yet"
               #docker run -it $DOCKER_NAME ls
   test_sif:
-    docker:
-      - image: singularityware/singularity:3.2.1-slim
+    machine:
+      enabled: true
     steps:
+      - alpine-install-3:
+          name: Install singularity over alpine
       - attach_workspace:
           at: /tmp/workspace
       - run:
