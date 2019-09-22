@@ -65,7 +65,6 @@ jobs:
       enabled: true
     steps:
       - singularity/alpine-install-3:
-          name: Install singularity over alpine
       - attach_workspace:
           at: /tmp/workspace
       - run:
