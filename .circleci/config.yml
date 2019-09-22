@@ -89,7 +89,7 @@ jobs:
           no_output_timeout: 1h
           command: |
             ssh-keyscan $CC_HOST >> ~/.ssh/known_hosts
-            scp /tmp/workspace/singularity_image.sif ${CC_USER}@${CC_HOST}:${CC_PATH}/${CIRCLE_PROJECT_USERNAME}_${CIRCLE_PROJECT_REPONAME}_latest
+            scp /tmp/workspace/singularity_image.sif ${CC_USER}@${CC_HOST}:${CC_PATH}/${CIRCLE_PROJECT_USERNAME}_${CIRCLE_PROJECT_REPONAME}_latest.sif
            
   deploy_dev_sif:
     docker:
@@ -168,7 +168,7 @@ jobs:
           no_output_timeout: 1h
           command: |
             ssh-keyscan $CC_HOST >> ~/.ssh/known_hosts
-            scp /tmp/workspace/singularity_image.sif ${CC_USER}@${CC_HOST}:${CC_PATH}/${CIRCLE_PROJECT_USERNAME}_${CIRCLE_PROJECT_REPONAME}_${CIRCLE_TAG}
+            scp /tmp/workspace/singularity_image.sif ${CC_USER}@${CC_HOST}:${CC_PATH}/${CIRCLE_PROJECT_USERNAME}_${CIRCLE_PROJECT_REPONAME}_${CIRCLE_TAG}.sif
            
   deploy_release_sif:
     docker:
@@ -212,17 +212,10 @@ workflows:
           filters:
             tags:
               only: /.*/
-      - test_sif:
-          requires:
-            - build_sif
-          context: org-global
-          filters:
-            tags:
-              only: /.*/
       - deploy_dev_cc:
           requires:
             - build_sif
-            - test_sif
+            - test
           context: org-global
           filters:
             tags:
@@ -249,9 +242,8 @@ workflows:
               ignore: /.*/
       - deploy_release_cc:
           requires:
-            - build
+            - build_sif
             - test
-            - deploy_release
           context: org-global
           filters:
             tags:
