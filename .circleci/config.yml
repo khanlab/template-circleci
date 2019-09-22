@@ -79,6 +79,9 @@ jobs:
     docker:
       - image: docker:17.05.0-ce-git
     steps:
+      - add_ssh_keys:
+          fingerprints:
+            - "5a:4b:ef:15:70:14:a6:a1:0d:ca:4c:b8:e0:dd:a4:7d"
       - attach_workspace:
           at: /tmp/workspace
       - run: 
