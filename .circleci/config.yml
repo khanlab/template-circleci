@@ -130,6 +130,7 @@ jobs:
             git commit -m "shub build release $CIRCLE_TAG [skip ci]"
             git push -q https://${GITHUB_TOKEN}@github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git HEAD:master
 
+
 workflows:
   commit:
     jobs: 
