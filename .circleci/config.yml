@@ -61,6 +61,24 @@ jobs:
               echo "no tests implemented yet"
               #docker run -it $DOCKER_NAME ls
 
+  deploy_dev_sif:
+    docker:
+      - image: singularityware/singularity:3.2.1
+    steps:
+      - attach_workspace:
+          at: /tmp/workspace
+      - run: 
+          name: Login to sylabs cloud
+          no_output_timeout: 1h
+          command: |
+            echo $SYLABS_TOKEN > ~/.singularity/sylabs-token
+            singularity remote add SylabsCloud cloud.sylabs.io
+            singularity remote list
+      - run:
+          name: Pushing build to sylabs cloud
+          command: |
+            singularity push /tmp/workspace/singularity_image.sif library://${SYLABS_USER}/default/${CIRCLE_PROJECT_REPONAME}:latest
+
   deploy_dev:
     docker:
       - image: docker:17.05.0-ce-git
@@ -68,10 +86,10 @@ jobs:
       - setup_remote_docker            
       - attach_workspace:
           at: /tmp/workspace
-      - run: 
-          name: Load docker image
-          no_output_timeout: 1h
-          command: |
+      - run:
+         name: Load docker image
+           no_output_timeout: 1h
+         command: |
             docker load -i /tmp/workspace/docker_image.tar
       - run:
           name: Pushing build to docker hub
@@ -171,6 +189,14 @@ workflows:
           filters:
             tags:
               only: /.*/
+      - deploy_dev_sif:
+          requires:
+            - build_sif
+            - test
+          context: org-global
+          filters:
+            tags:
+              ignore: /^v.*/
       - deploy_dev:
           requires:
             - build
