@@ -74,7 +74,7 @@ jobs:
           name: Running Tests
           command: |
               # put tests here
-              singularity run /tmp/workspace/singularity_image.sif
+              singularity exec /tmp/workspace/singularity_image.sif ls
               echo "no tests implemented yet"
               
   deploy_dev_sif:
