@@ -71,7 +71,8 @@ jobs:
           name: Login to sylabs cloud
           no_output_timeout: 1h
           command: |
-            echo $SYLABS_TOKEN > ~/.singularity/sylabs-token
+            mkdir /root/.singularity
+            echo $SYLABS_TOKEN > /root/.singularity/sylabs-token
             singularity remote add SylabsCloud cloud.sylabs.io
             singularity remote list
       - run:
