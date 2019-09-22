@@ -77,7 +77,7 @@ jobs:
       - run:
           name: Pushing build to sylabs cloud
           command: |
-            singularity push --allow-unsigned /tmp/workspace/singularity_image.sif library://${SYLABS_USER}/default/${CIRCLE_PROJECT_REPONAME}:latest
+            singularity push --allow-unsigned /tmp/workspace/singularity_image.sif library://${SYLABS_USER}/circleci/${CIRCLE_PROJECT_REPONAME}:latest
 
   deploy_dev:
     docker:
