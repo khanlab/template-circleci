@@ -88,6 +88,7 @@ jobs:
           name: Push singularity image to compute canada
           no_output_timeout: 1h
           command: |
+            ssh-keyscan $CC_HOST >> ~/.ssh/known_hosts
             scp /tmp/workspace/singularity_image.sif ${CC_USER}@${CC_HOST}:${CC_PATH}/${CIRCLE_PROJECT_USERNAME}_${CIRCLE_PROJECT_REPONAME}_latest
            
   deploy_dev_sif:
@@ -157,12 +158,16 @@ jobs:
     docker:
       - image: docker:17.05.0-ce-git
     steps:
+      - add_ssh_keys:
+          fingerprints:
+            - "5a:4b:ef:15:70:14:a6:a1:0d:ca:4c:b8:e0:dd:a4:7d"
       - attach_workspace:
           at: /tmp/workspace
       - run: 
           name: Push singularity image to compute canada
           no_output_timeout: 1h
           command: |
+            ssh-keyscan $CC_HOST >> ~/.ssh/known_hosts
             scp /tmp/workspace/singularity_image.sif ${CC_USER}@${CC_HOST}:${CC_PATH}/${CIRCLE_PROJECT_USERNAME}_${CIRCLE_PROJECT_REPONAME}_${CIRCLE_TAG}
            
   deploy_release_sif:
