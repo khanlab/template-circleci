@@ -4,7 +4,7 @@ orbs:
 jobs:
   build:
     docker:
-      - image: docker:17.05.0-ce-git
+      - image: singularityware/singularity:3.2.1
     steps:
       - checkout
       - setup_remote_docker
@@ -135,8 +135,6 @@ workflows:
   version: 2.0
   commit:
     jobs: 
-      - singularity/docker_cli:
-          singularity-version: 3.2.1-slim
       - build:
           context: org-global
           filters:
