@@ -131,7 +131,7 @@ jobs:
             git push -q https://${GITHUB_TOKEN}@github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git HEAD:master
 
 workflows:
-  version: 2.0
+  version: 2.1
   commit:
     jobs: 
       - singularity/docker_cli:
