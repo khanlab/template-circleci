@@ -132,6 +132,7 @@ jobs:
 
 
 workflows:
+  version: 2.0
   commit:
     jobs: 
       - singularity/docker_cli:
