@@ -153,12 +153,12 @@ workflows:
           requires:
             - build
             - test
+          context: org-global
           filters:
             tags:
               ignore: /^v.*/
-          context: org-global
-          branches:
-            only: master
+            branches:
+              only: master
       - deploy_release:
           requires:
             - build
