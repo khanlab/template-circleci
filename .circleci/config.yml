@@ -73,7 +73,6 @@ jobs:
           command: |
             mkdir /root/.singularity
             echo $SYLABS_TOKEN > /root/.singularity/sylabs-token
-            singularity remote add SylabsCloud cloud.sylabs.io
             singularity remote list
       - run:
           name: Pushing build to sylabs cloud
