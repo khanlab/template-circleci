@@ -152,6 +152,8 @@ workflows:
             tags:
               ignore: /^v.*/
           context: org-global
+          branches:
+            only: master
       - deploy_release:
           requires:
             - build
