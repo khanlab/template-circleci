@@ -5,136 +5,47 @@ orbs:
 
 jobs:
 
-  build_test_sif_orb:
+  build_test_singularity:
     machine: true
     steps:
+
+    # set-up machine with singularity
+    
       - singularity/install-go
       - run:
          name: Update repo
          command: |
            sudo apt-get update
       - singularity/debian-install-3
+
+    # build singularity image from docker tar
+    
       - attach_workspace:
          at: /tmp/workspace
       - singularity/build-image:
          from-uri: docker-archive:///tmp/workspace/docker_image.tar
          image: /tmp/singularity_image.sif
+
+
+    # run tests:
+
       - run:
          name: Testing singularity image with exec
          no_output_timeout: 1h
          command: |
            singularity exec /tmp/singularity_image.sif ls
+
+    # save sif to workspace for later deployment
+    
       - persist_to_workspace:
          root: /tmp
          paths:
            - singularity_image.sif
-      - store_artifacts:
-         path: /tmp/singularity_image.sif
 
-
-
-  test_sif:
-    machine: true
-    steps:
-    - run:
-        name: Install GoLang
-        command: |
-          if [[ $EUID == 0 ]]; then export SUDO=""; else export SUDO="sudo"; fi
-          if ! type "sudo" > /dev/null; then export SUDO=""; fi
-          cd /tmp
-          wget https://dl.google.com/go/go1.11.5.linux-amd64.tar.gz
-          tar -xzf go1.11.5.linux-amd64.tar.gz
-          export PATH=/tmp/go/bin:$PATH
-              $SUDO mkdir -p /go
-              $SUDO chmod -R 7777 /go
-          which go
-          export GOPATH=/go
-          if [ -f "$BASH_ENV" ]; then
-            echo "export PATH='/tmp/go/bin:$PATH'" >> "$BASH_ENV"
-            echo "export GOPATH='/go'" >> "$BASH_ENV"
-          fi
-    - run:
-        name: Fix cache permissions for extraction
-        command: |
-          NOSUDO=false
-          which sudo || NOSUDO=true
-          if [[ "$NOSUDO" == "false" ]]; then
-              if [[ $EUID == 0 ]]; then export SUDO=""; else export SUDO="sudo"; fi
-          fi
-          echo "$SUDO mkdir -p $HOME/singularity"
-          $SUDO mkdir -p $HOME/singularity /root/singularity
-          echo "$SUDO chown -R $(whoami) $HOME/singularity"
-          $SUDO chown -R $(whoami) $HOME/singularity
-    - restore_cache:
-        keys: v3-dependencies-machine-3.2.1
-    - run:
-        name: install Singularity 3.* Debian Dependencies
-        command: |
-          if [[ $EUID == 0 ]]; then export SUDO=""; else export SUDO="sudo"; fi
-          $SUDO apt-get update
-          $SUDO apt-get install -y build-essential \
-                                   squashfs-tools \
-                                   libtool \
-                                   uuid-dev \
-                                   libssl-dev \
-                                   libgpgme11-dev \
-                                   libseccomp-dev \
-                                   pkg-config
-    - run:
-        name: Install Singularity (Version 3.* and up)
-        command: |
-          if [[ $EUID == 0 ]]; then export SUDO=""; else export SUDO="sudo"; fi
-          # Create a directory in home for Singularity
-          $SUDO mkdir -p $HOME/singularity
-          SINGULARITY_PREFIX="$HOME/singularity/3.2.1"
-          echo "export PATH='${SINGULARITY_PREFIX}/bin:$PATH'" >> "$BASH_ENV"
-          if [ -f "$BASH_ENV" ]; then source $BASH_ENV; fi
-          echo $PATH
-          export GOPATH=/go
-          if [ -d "/tmp/go/bin" ]; then export PATH=/tmp/go/bin:$PATH; fi
-          if [ ! -f "${SINGULARITY_PREFIX}/bin/singularity" ]; then
-            mkdir -p ${GOPATH}/src/github.com/sylabs
-            go get -u github.com/golang/dep/cmd/dep
-            cd ${GOPATH}/src/github.com/sylabs
-            wget https://github.com/sylabs/singularity/releases/download/v3.2.1/singularity-3.2.1.tar.gz
-            tar -xzvf singularity-3.2.1.tar.gz
-            cd singularity && ./mconfig -p "${SINGULARITY_PREFIX}" && make -C builddir && $SUDO make -C builddir install
-          fi
-    - run:
-        name: Fix permissions on extracted Singularity
-        command: |
-          NOSUDO=false
-          which sudo || NOSUDO=true
-          if [[ "$NOSUDO" == "false" ]]; then
-            if [[ $EUID == 0 ]]; then export SUDO=""; else export SUDO="sudo"; fi
-          fi
-          SINGULARITY_PREFIX="$HOME/singularity/3.2.1"
-          $SUDO chown -R root:root $HOME/singularity
-          $SUDO chmod 4755 ${SINGULARITY_PREFIX}/libexec/singularity/bin/starter-suid
-          if [[ -f "/etc/sudoers" ]]; then
-            $SUDO sed -i -e 's/^Defaults\tsecure_path.*$//' /etc/sudoers
-          fi
-    - save_cache:
-        paths:
-        - ~/singularity/3.2.1
-        key: v3-dependencies-machine-3.2.1
-    - run:
-        name: Check install version
-        command: |
-          if [ -f "$BASH_ENV" ]; then source $BASH_ENV; fi
-          singularity --version
-    - attach_workspace:
-        at: /tmp/workspace
-    - run:
-        name: Testing singularity image with exec
-        no_output_timeout: 1h
-        command: |
-          singularity exec /tmp/workspace/singularity_image.sif ls
-    
-      
+ 
      
       
-  build:
+  build_docker:
     docker:
     - image: docker:17.05.0-ce-git
     steps:
@@ -267,58 +178,39 @@ jobs:
         command: |
           ssh-keyscan $CC_HOST >> ~/.ssh/known_hosts
           scp /tmp/workspace/singularity_image.sif ${CC_USER}@${CC_HOST}:${CC_PATH}/${CIRCLE_PROJECT_USERNAME}_${CIRCLE_PROJECT_REPONAME}_${CIRCLE_TAG}.sif
+
+        
+        
+        
 workflows:
   version: 2
   commit:
     jobs:    
-    - build_test_sif_orb:
+    - build_test_singularity:
         filters:
           tags:
             only: /.*/
         context: org-global
         requires:
-        - build
-    - test_sif:
+        - build_docker
+    - build_docker:
         filters:
           tags:
             only: /.*/
-        context: org-global
-        requires:
-        - build_sif
-    - build:
-        filters:
-          tags:
-            only: /.*/
-        context: org-global
-    - build_sif:
-        filters:
-          tags:
-            only: /.*/
-        requires:
-        - build
-        context: org-global
-    - test:
-        filters:
-          tags:
-            only: /.*/
-        requires:
-        - build
         context: org-global
     - deploy_dev_cc:
         filters:
           tags:
             ignore: /^v.*/
         requires:
-        - build_sif
-        - test
+        - build_test_singularity
         context: org-global
     - deploy_dev:
         filters:
           tags:
             ignore: /^v.*/
         requires:
-        - build
-        - test
+        - build_test_singularity
         context: org-global
     - deploy_release:
         filters:
@@ -327,8 +219,7 @@ workflows:
           branches:
             ignore: /.*/
         requires:
-        - build
-        - test
+        - build_test_singularity
         context: org-global
     - deploy_release_cc:
         filters:
@@ -337,8 +228,7 @@ workflows:
           branches:
             ignore: /.*/
         requires:
-        - build_sif
-        - test
+        - build_test_singularity
         context: org-global
 
 # Original config.yml file:
