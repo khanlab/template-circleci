@@ -6,6 +6,11 @@ jobs:
   test_sif:
     machine: true
     steps:
+      - run:
+          name: Updating repo
+          command: |
+              apt-get update
+
       - singularity/debian-install-3
       - attach_workspace:
           at: /tmp/workspace
