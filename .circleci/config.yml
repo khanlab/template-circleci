@@ -3,23 +3,7 @@ orbs:
    singularity: singularity/singularity@1.0.8
 
 jobs:
-  test_sif:
-    machine: true
-    steps:
-      - run:
-          name: Updating repo
-          command: |
-              sudo apt-get update
-
-      - singularity/debian-install-3
-      - attach_workspace:
-          at: /tmp/workspace
-      - run:
-          name: Running Tests
-          command: |
-              singularity exec /tmp/workspace/singularity_image.sif ls
-
-
+  
   build:
     docker:
       - image: docker:17.05.0-ce-git
@@ -202,13 +186,10 @@ workflows:
   version: 2.0
   commit:
     jobs: 
-      - test_sif:
-          requires:
-            - build_sif
-          context: org-global
-          filters:
-            tags:
-              only: /.*/
+      - singularity/install_debian_3:
+         go-version: 1.11.5
+         singularity-version: 3.2.1
+
       - build:
           context: org-global
           filters:
