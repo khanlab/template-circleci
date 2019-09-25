@@ -1,6 +1,36 @@
 # Orb 'singularity/singularity@1.0.8' resolved to 'singularity/singularity@1.0.8'
-version: 2
+version: 2.1
+orbs:
+    singularity: singularity/singularity@1.0.8
+
 jobs:
+
+  build_test_sif_orb:
+    machine: true
+    steps:
+      - singularity/install-go
+      - run:
+         name: Update repo
+         command: |
+           sudo apt-get update
+      - singularity/debian-install-3
+      - singularity/build-image:
+         from-uri: docker-archive:///tmp/workspace/docker_image.tar
+         image: /tmp/singularity_image.sif
+      - run:
+         name: Testing singularity image with exec
+         no_output_timeout: 1h
+         command: |
+           singularity exec /tmp/singularity_image.sif ls
+      - persist_to_workspace:
+         root: /tmp
+         paths:
+           - singularity_image.sif
+      - store_artifacts:
+         path: /tmp/singularity_image.sif
+
+
+
   test_sif:
     machine: true
     steps:
@@ -238,7 +268,14 @@ jobs:
 workflows:
   version: 2
   commit:
-    jobs:
+    jobs:    
+    - build_test_sif_orb:
+        filters:
+          tags:
+            only: /.*/
+        context: org-global
+        requires:
+        - build
     - test_sif:
         filters:
           tags:
