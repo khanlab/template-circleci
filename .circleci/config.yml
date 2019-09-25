@@ -14,6 +14,8 @@ jobs:
          command: |
            sudo apt-get update
       - singularity/debian-install-3
+      - attach_workspace:
+         at: /tmp/workspace
       - singularity/build-image:
          from-uri: docker-archive:///tmp/workspace/docker_image.tar
          image: /tmp/singularity_image.sif
