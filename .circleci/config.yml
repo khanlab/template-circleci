@@ -1,7 +1,7 @@
 # Orb 'singularity/singularity@1.0.8' resolved to 'singularity/singularity@1.0.8'
 version: 2
 jobs:
-  singularity/install_debian_3:
+  test_sif:
     machine: true
     steps:
     - run:
@@ -91,26 +91,16 @@ jobs:
         command: |
           if [ -f "$BASH_ENV" ]; then source $BASH_ENV; fi
           singularity --version
-
-      
-  build_sif_machine:
-    machine: true
-    steps:
-    - restore_cache:
-        keys: v3-dependencies-machine-3.2.1
     - attach_workspace:
         at: /tmp/workspace
     - run:
-        name: Building singularity image from docker tar
+        name: Testing singularity image with exec
         no_output_timeout: 1h
         command: |
-          singularity build /tmp/singularity_image.sif docker-archive:///tmp/workspace/docker_image.tar
-    - persist_to_workspace:
-        root: /tmp
-        paths:
-        - singularity_image.sif
-
+          singularity exec /tmp/singularity_image.sif ls
+    
       
+     
       
   build:
     docker:
@@ -249,13 +239,19 @@ workflows:
   version: 2
   commit:
     jobs:
-    - singularity/install_debian_3
+    - test_sif:
+        filters:
+          tags:
+            only: /.*/
+        context: org-global
+        requires:
+        - build_sif
     - build:
         filters:
           tags:
             only: /.*/
         context: org-global
-    - build_sif_machine:
+    - build_sif:
         filters:
           tags:
             only: /.*/
@@ -274,7 +270,7 @@ workflows:
           tags:
             ignore: /^v.*/
         requires:
-        - build_sif_machine
+        - build_sif
         - test
         context: org-global
     - deploy_dev:
@@ -302,7 +298,7 @@ workflows:
           branches:
             ignore: /.*/
         requires:
-        - build_sif_machine
+        - build_sif
         - test
         context: org-global
 
