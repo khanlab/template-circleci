@@ -1,249 +1,536 @@
-version: 2.1
-orbs:
-   singularity: singularity/singularity@1.0.8
-
+# Orb 'singularity/singularity@1.0.8' resolved to 'singularity/singularity@1.0.8'
+version: 2
 jobs:
-  
+  singularity/install_debian_3:
+    machine: true
+    steps:
+    - run:
+        name: Install GoLang
+        command: |
+          if [[ $EUID == 0 ]]; then export SUDO=""; else export SUDO="sudo"; fi
+          if ! type "sudo" > /dev/null; then export SUDO=""; fi
+          cd /tmp
+          wget https://dl.google.com/go/go1.11.5.linux-amd64.tar.gz
+          tar -xzf go1.11.5.linux-amd64.tar.gz
+          export PATH=/tmp/go/bin:$PATH
+              $SUDO mkdir -p /go
+              $SUDO chmod -R 7777 /go
+          which go
+          export GOPATH=/go
+          if [ -f "$BASH_ENV" ]; then
+            echo "export PATH='/tmp/go/bin:$PATH'" >> "$BASH_ENV"
+            echo "export GOPATH='/go'" >> "$BASH_ENV"
+          fi
+    - run:
+        name: Fix cache permissions for extraction
+        command: |
+          NOSUDO=false
+          which sudo || NOSUDO=true
+          if [[ "$NOSUDO" == "false" ]]; then
+              if [[ $EUID == 0 ]]; then export SUDO=""; else export SUDO="sudo"; fi
+          fi
+          echo "$SUDO mkdir -p $HOME/singularity"
+          $SUDO mkdir -p $HOME/singularity /root/singularity
+          echo "$SUDO chown -R $(whoami) $HOME/singularity"
+          $SUDO chown -R $(whoami) $HOME/singularity
+    - restore_cache:
+        keys: v3-dependencies-machine-3.2.1
+    - run:
+        name: install Singularity 3.* Debian Dependencies
+        command: |
+          if [[ $EUID == 0 ]]; then export SUDO=""; else export SUDO="sudo"; fi
+          $SUDO apt-get update
+          $SUDO apt-get install -y build-essential \
+                                   squashfs-tools \
+                                   libtool \
+                                   uuid-dev \
+                                   libssl-dev \
+                                   libgpgme11-dev \
+                                   libseccomp-dev \
+                                   pkg-config
+    - run:
+        name: Install Singularity (Version 3.* and up)
+        command: |
+          if [[ $EUID == 0 ]]; then export SUDO=""; else export SUDO="sudo"; fi
+          # Create a directory in home for Singularity
+          $SUDO mkdir -p $HOME/singularity
+          SINGULARITY_PREFIX="$HOME/singularity/3.2.1"
+          echo "export PATH='${SINGULARITY_PREFIX}/bin:$PATH'" >> "$BASH_ENV"
+          if [ -f "$BASH_ENV" ]; then source $BASH_ENV; fi
+          echo $PATH
+          export GOPATH=/go
+          if [ -d "/tmp/go/bin" ]; then export PATH=/tmp/go/bin:$PATH; fi
+          if [ ! -f "${SINGULARITY_PREFIX}/bin/singularity" ]; then
+            mkdir -p ${GOPATH}/src/github.com/sylabs
+            go get -u github.com/golang/dep/cmd/dep
+            cd ${GOPATH}/src/github.com/sylabs
+            wget https://github.com/sylabs/singularity/releases/download/v3.2.1/singularity-3.2.1.tar.gz
+            tar -xzvf singularity-3.2.1.tar.gz
+            cd singularity && ./mconfig -p "${SINGULARITY_PREFIX}" && make -C builddir && $SUDO make -C builddir install
+          fi
+    - run:
+        name: Fix permissions on extracted Singularity
+        command: |
+          NOSUDO=false
+          which sudo || NOSUDO=true
+          if [[ "$NOSUDO" == "false" ]]; then
+            if [[ $EUID == 0 ]]; then export SUDO=""; else export SUDO="sudo"; fi
+          fi
+          SINGULARITY_PREFIX="$HOME/singularity/3.2.1"
+          $SUDO chown -R root:root $HOME/singularity
+          $SUDO chmod 4755 ${SINGULARITY_PREFIX}/libexec/singularity/bin/starter-suid
+          if [[ -f "/etc/sudoers" ]]; then
+            $SUDO sed -i -e 's/^Defaults\tsecure_path.*$//' /etc/sudoers
+          fi
+    - save_cache:
+        paths:
+        - ~/singularity/3.2.1
+        key: v3-dependencies-machine-3.2.1
+    - run:
+        name: Check install version
+        command: |
+          if [ -f "$BASH_ENV" ]; then source $BASH_ENV; fi
+          singularity --version
   build:
     docker:
-      - image: docker:17.05.0-ce-git
+    - image: docker:17.05.0-ce-git
     steps:
-      - checkout
-      - setup_remote_docker
-      - run:
-          name: Building Docker container
-          no_output_timeout: 1h
-          command: |
-              if [ "$CIRCLE_BRANCH" = "master" -o "$CIRCLE_BRANCH" = "" ]; then MY_TAG=latest; else MY_TAG=$CIRCLE_BRANCH; fi
-              export DOCKER_NAME=$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME:$MY_TAG
-              docker build -t $DOCKER_NAME .
-              docker save $DOCKER_NAME -o /tmp/docker_image.tar
-      - persist_to_workspace:
-          root: /tmp
-          paths:
-            - docker_image.tar
-            
+    - checkout
+    - setup_remote_docker
+    - run:
+        name: Building Docker container
+        no_output_timeout: 1h
+        command: |
+          if [ "$CIRCLE_BRANCH" = "master" -o "$CIRCLE_BRANCH" = "" ]; then MY_TAG=latest; else MY_TAG=$CIRCLE_BRANCH; fi
+          export DOCKER_NAME=$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME:$MY_TAG
+          docker build -t $DOCKER_NAME .
+          docker save $DOCKER_NAME -o /tmp/docker_image.tar
+    - persist_to_workspace:
+        root: /tmp
+        paths:
+        - docker_image.tar
   build_sif:
     docker:
-      - image: singularityware/singularity:3.2.1-slim
+    - image: singularityware/singularity:3.2.1-slim
     steps:
-      - checkout
-      - attach_workspace:
-          at: /tmp/workspace
-      - run:
-          name: Building singularity image from docker tar
-          no_output_timeout: 1h
-          command: |
-              singularity build /tmp/singularity_image.sif docker-archive:///tmp/workspace/docker_image.tar
-      - persist_to_workspace:
-          root: /tmp
-          paths:
-            - singularity_image.sif
-
+    - checkout
+    - attach_workspace:
+        at: /tmp/workspace
+    - run:
+        name: Building singularity image from docker tar
+        no_output_timeout: 1h
+        command: |
+          singularity build /tmp/singularity_image.sif docker-archive:///tmp/workspace/docker_image.tar
+    - persist_to_workspace:
+        root: /tmp
+        paths:
+        - singularity_image.sif
   test:
     docker:
-      - image: docker:17.05.0-ce-git
+    - image: docker:17.05.0-ce-git
     steps:
-      - setup_remote_docker            
-      - attach_workspace:
-          at: /tmp/workspace
-      - run:
-          name: Install dependencies 
-          command: |
-            apk add --update make wget
-      - run: 
-          name: Load docker image
-          no_output_timeout: 1h
-          command: |
-            docker load -i /tmp/workspace/docker_image.tar
-      - run:
-          name: Running Tests
-          command: |
-              if [ "$CIRCLE_BRANCH" = "master" -o "$CIRCLE_BRANCH" = "" ]; then MY_TAG=latest; else MY_TAG=$CIRCLE_BRANCH; fi
-              export DOCKER_NAME=$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME:$MY_TAG
-              # put tests here
-              echo "no tests implemented yet"
-              #docker run -it $DOCKER_NAME ls
-
+    - setup_remote_docker
+    - attach_workspace:
+        at: /tmp/workspace
+    - run:
+        name: Install dependencies
+        command: |
+          apk add --update make wget
+    - run:
+        name: Load docker image
+        no_output_timeout: 1h
+        command: |
+          docker load -i /tmp/workspace/docker_image.tar
+    - run:
+        name: Running Tests
+        command: |
+          if [ "$CIRCLE_BRANCH" = "master" -o "$CIRCLE_BRANCH" = "" ]; then MY_TAG=latest; else MY_TAG=$CIRCLE_BRANCH; fi
+          export DOCKER_NAME=$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME:$MY_TAG
+          # put tests here
+          echo "no tests implemented yet"
+          #docker run -it $DOCKER_NAME ls
   deploy_dev_cc:
     docker:
-      - image: docker:17.05.0-ce-git
+    - image: docker:17.05.0-ce-git
     steps:
-      - add_ssh_keys:
-          fingerprints:
-            - "5a:4b:ef:15:70:14:a6:a1:0d:ca:4c:b8:e0:dd:a4:7d"
-      - attach_workspace:
-          at: /tmp/workspace
-      - run: 
-          name: Push singularity image to compute canada
-          no_output_timeout: 1h
-          command: |
-            ssh-keyscan $CC_HOST >> ~/.ssh/known_hosts
-            if [ "$CIRCLE_BRANCH" = "master" ]; then MY_TAG=latest; else MY_TAG=$CIRCLE_BRANCH; fi
-            scp /tmp/workspace/singularity_image.sif ${CC_USER}@${CC_HOST}:${CC_PATH}/${CIRCLE_PROJECT_USERNAME}_${CIRCLE_PROJECT_REPONAME}_${MY_TAG}.sif
-           
-  deploy_dev_sif:
-    docker:
-      - image: singularityware/singularity:3.2.1-slim
-    steps:
-      - attach_workspace:
-          at: /tmp/workspace
-      - run: 
-          name: Login to sylabs cloud
-          no_output_timeout: 1h
-          command: |
-            mkdir /root/.singularity
-            echo $SYLABS_TOKEN > /root/.singularity/sylabs-token
-            singularity remote list
-      - run:
-          name: Pushing build to sylabs cloud
-          command: |
-            if [ "$CIRCLE_BRANCH" = "master" ]; then MY_TAG=latest; else MY_TAG=$CIRCLE_BRANCH; fi
-            singularity push --allow-unsigned /tmp/workspace/singularity_image.sif library://${SYLABS_USER}/circleci/${CIRCLE_PROJECT_REPONAME}:$MY_TAG
-
+    - add_ssh_keys:
+        fingerprints:
+        - 5a:4b:ef:15:70:14:a6:a1:0d:ca:4c:b8:e0:dd:a4:7d
+    - attach_workspace:
+        at: /tmp/workspace
+    - run:
+        name: Push singularity image to compute canada
+        no_output_timeout: 1h
+        command: |
+          ssh-keyscan $CC_HOST >> ~/.ssh/known_hosts
+          if [ "$CIRCLE_BRANCH" = "master" ]; then MY_TAG=latest; else MY_TAG=$CIRCLE_BRANCH; fi
+          scp /tmp/workspace/singularity_image.sif ${CC_USER}@${CC_HOST}:${CC_PATH}/${CIRCLE_PROJECT_USERNAME}_${CIRCLE_PROJECT_REPONAME}_${MY_TAG}.sif
   deploy_dev:
     docker:
-      - image: docker:17.05.0-ce-git
+    - image: docker:17.05.0-ce-git
     steps:
-      - setup_remote_docker            
-      - attach_workspace:
-          at: /tmp/workspace
-      - run:
-         name: Load docker image
-         no_output_timeout: 1h
-         command: |
-            docker load -i /tmp/workspace/docker_image.tar
-      - run:
-          name: Pushing build to docker hub
-          command: |
-            docker login -u $DOCKER_USER -p $DOCKER_PASS
-            if [ "$CIRCLE_BRANCH" = "master" ]; then MY_TAG=latest; else MY_TAG=$CIRCLE_BRANCH; fi
-            export DOCKER_NAME=$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME:$MY_TAG
-            # tag and push here:
-            echo docker push $DOCKER_NAME
-            docker push $DOCKER_NAME
-
+    - setup_remote_docker
+    - attach_workspace:
+        at: /tmp/workspace
+    - run:
+        name: Load docker image
+        no_output_timeout: 1h
+        command: |
+          docker load -i /tmp/workspace/docker_image.tar
+    - run:
+        name: Pushing build to docker hub
+        command: |
+          docker login -u $DOCKER_USER -p $DOCKER_PASS
+          if [ "$CIRCLE_BRANCH" = "master" ]; then MY_TAG=latest; else MY_TAG=$CIRCLE_BRANCH; fi
+          export DOCKER_NAME=$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME:$MY_TAG
+          # tag and push here:
+          echo docker push $DOCKER_NAME
+          docker push $DOCKER_NAME
   deploy_release:
     docker:
-      - image: docker:17.05.0-ce-git
+    - image: docker:17.05.0-ce-git
     steps:
-      - setup_remote_docker            
-      - attach_workspace:
-          at: /tmp/workspace
-      - run: 
-          name: Load docker image
-          no_output_timeout: 1h
-          command: |
-            docker load -i /tmp/workspace/docker_image.tar
-      - run:
-          name: Pushing build to docker hub
-          command: |
-            docker login -u $DOCKER_USER -p $DOCKER_PASS
-            export DOCKER_NAME=$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME:latest
-            export DOCKER_RELEASE=$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME:$CIRCLE_TAG
-            # tag and push here:
-            echo docker tag $DOCKER_NAME $DOCKER_RELEASE
-            docker tag $DOCKER_NAME $DOCKER_RELEASE
-            docker push $DOCKER_RELEASE
-            docker push $DOCKER_NAME
-
+    - setup_remote_docker
+    - attach_workspace:
+        at: /tmp/workspace
+    - run:
+        name: Load docker image
+        no_output_timeout: 1h
+        command: |
+          docker load -i /tmp/workspace/docker_image.tar
+    - run:
+        name: Pushing build to docker hub
+        command: |
+          docker login -u $DOCKER_USER -p $DOCKER_PASS
+          export DOCKER_NAME=$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME:latest
+          export DOCKER_RELEASE=$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME:$CIRCLE_TAG
+          # tag and push here:
+          echo docker tag $DOCKER_NAME $DOCKER_RELEASE
+          docker tag $DOCKER_NAME $DOCKER_RELEASE
+          docker push $DOCKER_RELEASE
+          docker push $DOCKER_NAME
   deploy_release_cc:
     docker:
-      - image: docker:17.05.0-ce-git
+    - image: docker:17.05.0-ce-git
     steps:
-      - add_ssh_keys:
-          fingerprints:
-            - "5a:4b:ef:15:70:14:a6:a1:0d:ca:4c:b8:e0:dd:a4:7d"
-      - attach_workspace:
-          at: /tmp/workspace
-      - run: 
-          name: Push singularity image to compute canada
-          no_output_timeout: 1h
-          command: |
-            ssh-keyscan $CC_HOST >> ~/.ssh/known_hosts
-            scp /tmp/workspace/singularity_image.sif ${CC_USER}@${CC_HOST}:${CC_PATH}/${CIRCLE_PROJECT_USERNAME}_${CIRCLE_PROJECT_REPONAME}_${CIRCLE_TAG}.sif
-           
-  deploy_release_sif:
-    docker:
-      - image: singularityware/singularity:3.2.1-slim
-    steps:
-      - attach_workspace:
-          at: /tmp/workspace
-      - run: 
-          name: Login to sylabs cloud
-          no_output_timeout: 1h
-          command: |
-            mkdir /root/.singularity
-            echo $SYLABS_TOKEN > /root/.singularity/sylabs-token
-            singularity remote list
-      - run:
-          name: Pushing release to sylabs cloud
-          command: |
-            singularity push --allow-unsigned /tmp/workspace/singularity_image.sif library://${SYLABS_USER}/circleci/${CIRCLE_PROJECT_REPONAME}:$CIRCLE_TAG
-
-
+    - add_ssh_keys:
+        fingerprints:
+        - 5a:4b:ef:15:70:14:a6:a1:0d:ca:4c:b8:e0:dd:a4:7d
+    - attach_workspace:
+        at: /tmp/workspace
+    - run:
+        name: Push singularity image to compute canada
+        no_output_timeout: 1h
+        command: |
+          ssh-keyscan $CC_HOST >> ~/.ssh/known_hosts
+          scp /tmp/workspace/singularity_image.sif ${CC_USER}@${CC_HOST}:${CC_PATH}/${CIRCLE_PROJECT_USERNAME}_${CIRCLE_PROJECT_REPONAME}_${CIRCLE_TAG}.sif
 workflows:
-  version: 2.0
+  version: 2
   commit:
-    jobs: 
-      - singularity/install_debian_3:
-         go-version: 1.11.5
-         singularity-version: 3.2.1
+    jobs:
+    - singularity/install_debian_3
+    - build:
+        filters:
+          tags:
+            only: /.*/
+        context: org-global
+    - build_sif:
+        filters:
+          tags:
+            only: /.*/
+        requires:
+        - build
+        context: org-global
+    - test:
+        filters:
+          tags:
+            only: /.*/
+        requires:
+        - build
+        context: org-global
+    - deploy_dev_cc:
+        filters:
+          tags:
+            ignore: /^v.*/
+        requires:
+        - build_sif
+        - test
+        context: org-global
+    - deploy_dev:
+        filters:
+          tags:
+            ignore: /^v.*/
+        requires:
+        - build
+        - test
+        context: org-global
+    - deploy_release:
+        filters:
+          tags:
+            only: /^v.*/
+          branches:
+            ignore: /.*/
+        requires:
+        - build
+        - test
+        context: org-global
+    - deploy_release_cc:
+        filters:
+          tags:
+            only: /^v.*/
+          branches:
+            ignore: /.*/
+        requires:
+        - build_sif
+        - test
+        context: org-global
 
-      - build:
-          context: org-global
-          filters:
-            tags:
-              only: /.*/
-      - build_sif:
-          requires:
-            - build
-          context: org-global
-          filters:
-            tags:
-              only: /.*/
-      - test:
-          requires:
-            - build
-          context: org-global
-          filters:
-            tags:
-              only: /.*/
-      - deploy_dev_cc:
-          requires:
-            - build_sif
-            - test
-          context: org-global
-          filters:
-            tags:
-              ignore: /^v.*/
-      - deploy_dev:
-          requires:
-            - build
-            - test
-          context: org-global
-          filters:
-            tags:
-              ignore: /^v.*/
-
-      - deploy_release:
-          requires:
-            - build
-            - test
-          context: org-global
-          filters:
-            tags:
-              only: /^v.*/
-            branches:
-              ignore: /.*/
-      - deploy_release_cc:
-          requires:
-            - build_sif
-            - test
-          context: org-global
-          filters:
-            tags:
-              only: /^v.*/
-            branches:
-              ignore: /.*/
-
+# Original config.yml file:
+# version: 2.1
+# orbs:
+#    singularity: singularity/singularity@1.0.8
+# 
+# jobs:
+#   
+#   build:
+#     docker:
+#       - image: docker:17.05.0-ce-git
+#     steps:
+#       - checkout
+#       - setup_remote_docker
+#       - run:
+#           name: Building Docker container
+#           no_output_timeout: 1h
+#           command: |
+#               if [ \"$CIRCLE_BRANCH\" = \"master\" -o \"$CIRCLE_BRANCH\" = \"\" ]; then MY_TAG=latest; else MY_TAG=$CIRCLE_BRANCH; fi
+#               export DOCKER_NAME=$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME:$MY_TAG
+#               docker build -t $DOCKER_NAME .
+#               docker save $DOCKER_NAME -o /tmp/docker_image.tar
+#       - persist_to_workspace:
+#           root: /tmp
+#           paths:
+#             - docker_image.tar
+#             
+#   build_sif:
+#     docker:
+#       - image: singularityware/singularity:3.2.1-slim
+#     steps:
+#       - checkout
+#       - attach_workspace:
+#           at: /tmp/workspace
+#       - run:
+#           name: Building singularity image from docker tar
+#           no_output_timeout: 1h
+#           command: |
+#               singularity build /tmp/singularity_image.sif docker-archive:///tmp/workspace/docker_image.tar
+#       - persist_to_workspace:
+#           root: /tmp
+#           paths:
+#             - singularity_image.sif
+# 
+#   test:
+#     docker:
+#       - image: docker:17.05.0-ce-git
+#     steps:
+#       - setup_remote_docker            
+#       - attach_workspace:
+#           at: /tmp/workspace
+#       - run:
+#           name: Install dependencies 
+#           command: |
+#             apk add --update make wget
+#       - run: 
+#           name: Load docker image
+#           no_output_timeout: 1h
+#           command: |
+#             docker load -i /tmp/workspace/docker_image.tar
+#       - run:
+#           name: Running Tests
+#           command: |
+#               if [ \"$CIRCLE_BRANCH\" = \"master\" -o \"$CIRCLE_BRANCH\" = \"\" ]; then MY_TAG=latest; else MY_TAG=$CIRCLE_BRANCH; fi
+#               export DOCKER_NAME=$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME:$MY_TAG
+#               # put tests here
+#               echo \"no tests implemented yet\"
+#               #docker run -it $DOCKER_NAME ls
+# 
+#   deploy_dev_cc:
+#     docker:
+#       - image: docker:17.05.0-ce-git
+#     steps:
+#       - add_ssh_keys:
+#           fingerprints:
+#             - \"5a:4b:ef:15:70:14:a6:a1:0d:ca:4c:b8:e0:dd:a4:7d\"
+#       - attach_workspace:
+#           at: /tmp/workspace
+#       - run: 
+#           name: Push singularity image to compute canada
+#           no_output_timeout: 1h
+#           command: |
+#             ssh-keyscan $CC_HOST >> ~/.ssh/known_hosts
+#             if [ \"$CIRCLE_BRANCH\" = \"master\" ]; then MY_TAG=latest; else MY_TAG=$CIRCLE_BRANCH; fi
+#             scp /tmp/workspace/singularity_image.sif ${CC_USER}@${CC_HOST}:${CC_PATH}/${CIRCLE_PROJECT_USERNAME}_${CIRCLE_PROJECT_REPONAME}_${MY_TAG}.sif
+#            
+#   deploy_dev_sif:
+#     docker:
+#       - image: singularityware/singularity:3.2.1-slim
+#     steps:
+#       - attach_workspace:
+#           at: /tmp/workspace
+#       - run: 
+#           name: Login to sylabs cloud
+#           no_output_timeout: 1h
+#           command: |
+#             mkdir /root/.singularity
+#             echo $SYLABS_TOKEN > /root/.singularity/sylabs-token
+#             singularity remote list
+#       - run:
+#           name: Pushing build to sylabs cloud
+#           command: |
+#             if [ \"$CIRCLE_BRANCH\" = \"master\" ]; then MY_TAG=latest; else MY_TAG=$CIRCLE_BRANCH; fi
+#             singularity push --allow-unsigned /tmp/workspace/singularity_image.sif library://${SYLABS_USER}/circleci/${CIRCLE_PROJECT_REPONAME}:$MY_TAG
+# 
+#   deploy_dev:
+#     docker:
+#       - image: docker:17.05.0-ce-git
+#     steps:
+#       - setup_remote_docker            
+#       - attach_workspace:
+#           at: /tmp/workspace
+#       - run:
+#          name: Load docker image
+#          no_output_timeout: 1h
+#          command: |
+#             docker load -i /tmp/workspace/docker_image.tar
+#       - run:
+#           name: Pushing build to docker hub
+#           command: |
+#             docker login -u $DOCKER_USER -p $DOCKER_PASS
+#             if [ \"$CIRCLE_BRANCH\" = \"master\" ]; then MY_TAG=latest; else MY_TAG=$CIRCLE_BRANCH; fi
+#             export DOCKER_NAME=$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME:$MY_TAG
+#             # tag and push here:
+#             echo docker push $DOCKER_NAME
+#             docker push $DOCKER_NAME
+# 
+#   deploy_release:
+#     docker:
+#       - image: docker:17.05.0-ce-git
+#     steps:
+#       - setup_remote_docker            
+#       - attach_workspace:
+#           at: /tmp/workspace
+#       - run: 
+#           name: Load docker image
+#           no_output_timeout: 1h
+#           command: |
+#             docker load -i /tmp/workspace/docker_image.tar
+#       - run:
+#           name: Pushing build to docker hub
+#           command: |
+#             docker login -u $DOCKER_USER -p $DOCKER_PASS
+#             export DOCKER_NAME=$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME:latest
+#             export DOCKER_RELEASE=$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME:$CIRCLE_TAG
+#             # tag and push here:
+#             echo docker tag $DOCKER_NAME $DOCKER_RELEASE
+#             docker tag $DOCKER_NAME $DOCKER_RELEASE
+#             docker push $DOCKER_RELEASE
+#             docker push $DOCKER_NAME
+# 
+#   deploy_release_cc:
+#     docker:
+#       - image: docker:17.05.0-ce-git
+#     steps:
+#       - add_ssh_keys:
+#           fingerprints:
+#             - \"5a:4b:ef:15:70:14:a6:a1:0d:ca:4c:b8:e0:dd:a4:7d\"
+#       - attach_workspace:
+#           at: /tmp/workspace
+#       - run: 
+#           name: Push singularity image to compute canada
+#           no_output_timeout: 1h
+#           command: |
+#             ssh-keyscan $CC_HOST >> ~/.ssh/known_hosts
+#             scp /tmp/workspace/singularity_image.sif ${CC_USER}@${CC_HOST}:${CC_PATH}/${CIRCLE_PROJECT_USERNAME}_${CIRCLE_PROJECT_REPONAME}_${CIRCLE_TAG}.sif
+#            
+#   deploy_release_sif:
+#     docker:
+#       - image: singularityware/singularity:3.2.1-slim
+#     steps:
+#       - attach_workspace:
+#           at: /tmp/workspace
+#       - run: 
+#           name: Login to sylabs cloud
+#           no_output_timeout: 1h
+#           command: |
+#             mkdir /root/.singularity
+#             echo $SYLABS_TOKEN > /root/.singularity/sylabs-token
+#             singularity remote list
+#       - run:
+#           name: Pushing release to sylabs cloud
+#           command: |
+#             singularity push --allow-unsigned /tmp/workspace/singularity_image.sif library://${SYLABS_USER}/circleci/${CIRCLE_PROJECT_REPONAME}:$CIRCLE_TAG
+# 
+# 
+# workflows:
+#   version: 2.0
+#   commit:
+#     jobs: 
+#       - singularity/install_debian_3:
+#          go-version: 1.11.5
+#          singularity-version: 3.2.1
+# 
+#       - build:
+#           context: org-global
+#           filters:
+#             tags:
+#               only: /.*/
+#       - build_sif:
+#           requires:
+#             - build
+#           context: org-global
+#           filters:
+#             tags:
+#               only: /.*/
+#       - test:
+#           requires:
+#             - build
+#           context: org-global
+#           filters:
+#             tags:
+#               only: /.*/
+#       - deploy_dev_cc:
+#           requires:
+#             - build_sif
+#             - test
+#           context: org-global
+#           filters:
+#             tags:
+#               ignore: /^v.*/
+#       - deploy_dev:
+#           requires:
+#             - build
+#             - test
+#           context: org-global
+#           filters:
+#             tags:
+#               ignore: /^v.*/
+# 
+#       - deploy_release:
+#           requires:
+#             - build
+#             - test
+#           context: org-global
+#           filters:
+#             tags:
+#               only: /^v.*/
+#             branches:
+#               ignore: /.*/
+#       - deploy_release_cc:
+#           requires:
+#             - build_sif
+#             - test
+#           context: org-global
+#           filters:
+#             tags:
+#               only: /^v.*/
+#             branches:
+#               ignore: /.*/
