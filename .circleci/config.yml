@@ -91,6 +91,27 @@ jobs:
         command: |
           if [ -f "$BASH_ENV" ]; then source $BASH_ENV; fi
           singularity --version
+
+      
+  build_sif_machine:
+    machine: true
+    steps:
+    - restore_cache:
+        keys: v3-dependencies-machine-3.2.1
+    - attach_workspace:
+        at: /tmp/workspace
+    - run:
+        name: Building singularity image from docker tar
+        no_output_timeout: 1h
+        command: |
+          singularity build /tmp/singularity_image.sif docker-archive:///tmp/workspace/docker_image.tar
+    - persist_to_workspace:
+        root: /tmp
+        paths:
+        - singularity_image.sif
+
+      
+      
   build:
     docker:
     - image: docker:17.05.0-ce-git
@@ -234,7 +255,7 @@ workflows:
           tags:
             only: /.*/
         context: org-global
-    - build_sif:
+    - build_sif_machine:
         filters:
           tags:
             only: /.*/
@@ -253,7 +274,7 @@ workflows:
           tags:
             ignore: /^v.*/
         requires:
-        - build_sif
+        - build_sif_machine
         - test
         context: org-global
     - deploy_dev:
@@ -281,7 +302,7 @@ workflows:
           branches:
             ignore: /.*/
         requires:
-        - build_sif
+        - build_sif_machine
         - test
         context: org-global
 
