@@ -97,7 +97,7 @@ jobs:
         name: Testing singularity image with exec
         no_output_timeout: 1h
         command: |
-          singularity exec /tmp/singularity_image.sif ls
+          singularity exec /tmp/workspace/singularity_image.sif ls
     
       
      
